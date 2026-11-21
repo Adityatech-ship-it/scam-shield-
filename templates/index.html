@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scam Shield - AI Scam Detector & Live City Heatmap</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            900: '#0b0f19',
+                            800: '#111827',
+                            700: '#1f2937',
+                            accent: '#3b82f6',
+                            danger: '#ef4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Leaflet CSS & JS for Heatmap & Radar -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet Heat Plugin -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <!-- Tesseract.js CDN for in-browser client-side screenshot OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body class="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800/80 bg-slate-900/60 sticky top-0 z-50 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Logo & Brand -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-white bg-clip-text text-transparent">Scam Shield</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 uppercase tracking-wider">Cybersecurity</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Detect frauds, explain in simple language & warn your family</p>
+                </div>
+            </div>
+
+            <!-- Emergency Helpline Pill -->
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-semibold">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                    <span>National Cyber Crime Helpline: <strong>1930</strong></span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+                    <span class="text-slate-400">Total Reports:</span>
+                    <span id="stat-total-reports" class="font-bold text-blue-400 font-mono">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Trending Alert Ticker -->
+        <div class="bg-gradient-to-r from-amber-950/40 via-red-950/40 to-slate-900 border-t border-b border-amber-900/30 py-1.5 px-4">
+            <div class="max-w-7xl mx-auto flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2 truncate">
+                    <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">Trending Near You</span>
+                    <span id="trending-banner-text" class="text-slate-300 truncate">Loading current city scam trends...</span>
+                </div>
+                <button class="text-[11px] text-blue-400 hover:text-blue-300 underline font-medium ml-2 flex-shrink-0" onclick="document.querySelector('[data-tab=\'radar\']').click()">View Map</button>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2">
+            <nav class="flex space-x-2 overflow-x-auto pb-2 scrollbar-none" aria-label="Tabs">
+                <button data-tab="detector" class="nav-tab-btn tab-active px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <span>Scam Detector</span>
+                </button>
+                <button data-tab="radar" class="nav-tab-btn text-slate-400 hover:text-slate-200 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    <span>Live Scam Radar & Heatmap</span>
+                </button>
+                <button data-tab="report" class="nav-tab-btn text-slate-400 hover:text-slate-200 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
+                    <span>Report a Scam (Anonymous)</span>
+                </button>
+                <button data-tab="guide" class="nav-tab-btn text-slate-400 hover:text-slate-200 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    <span>Scam Playbooks</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+
+        <!-- ================= TAB 1: SCAM DETECTOR ================= -->
+        <section id="tab-detector" class="tab-panel space-y-6">
+            
+            <!-- Quick Demo Presets Shelf -->
+            <div class="glass-panel p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                        <svg class="w-4 h-4 text-amber-400 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Try 1-Click Demo Examples:
+                    </span>
+                    <span class="text-[11px] text-slate-400">Click any preset to test instantly</span>
+                </div>
+                <div id="presets-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    <!-- Loaded dynamically via loadPresets() -->
+                    <div class="p-3 text-xs text-slate-500 animate-pulse">Loading preset scenarios...</div>
+                </div>
+            </div>
+
+            <!-- Input & Upload Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Left 2 Cols: Text Paste Input -->
+                <div class="lg:col-span-2 glass-panel p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label for="message-input" class="text-sm font-semibold text-slate-200 flex items-center">
+                            <span>Paste Suspicious SMS, WhatsApp Message, or UPI Request</span>
+                        </label>
+                        <button id="btn-clear" class="text-xs text-slate-400 hover:text-slate-200">Clear</button>
+                    </div>
+
+                    <textarea id="message-input" rows="5" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl p-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-sans" placeholder="Example: 'Dear consumer electricity power disconnected tonight at 9:30 PM call 9811223344' OR 'Enter UPI PIN to receive Rs 15000'"></textarea>
+
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                        <div class="flex items-center space-x-2 text-xs text-slate-400">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            <span>100% Private & Anonymous</span>
+                        </div>
+                        <button id="btn-analyze" class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center space-x-2">
+                            <span>Analyze with Scam Shield</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Col: Screenshot Upload & OCR Dropzone -->
+                <div class="glass-panel p-5 flex flex-col justify-between space-y-3">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="text-sm font-semibold text-slate-200">Upload Screenshot</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">OCR Auto-Detect</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">Drop a screenshot of a suspicious WhatsApp chat, SMS, or UPI screen.</p>
+                        
+                        <!-- Dropzone -->
+                        <div id="screenshot-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-blue-500/60 rounded-xl p-5 text-center cursor-pointer transition-colors bg-slate-900/40">
+                            <input type="file" id="screenshot-file-input" accept="image/*" class="hidden">
+                            <svg class="w-8 h-8 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <p class="text-xs font-medium text-slate-300">Click to browse or drag & drop</p>
+                            <p class="text-[10px] text-slate-500 mt-1">PNG, JPG, WebP supported</p>
+                        </div>
+                    </div>
+
+                    <!-- OCR Progress Indicator -->
+                    <div id="ocr-status" class="hidden space-y-1.5 pt-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span id="ocr-status-text" class="text-blue-400 font-medium">Extracting text...</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div id="ocr-progress-bar" class="h-full bg-blue-500 w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Loader (Hidden by default) -->
+            <div id="analysis-loader" class="hidden text-center py-10 space-y-3">
+                <div class="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mx-auto"></div>
+                <p class="text-sm text-slate-400">Scanning message heuristics, urgency vectors, and scam fingerprints...</p>
+            </div>
+
+            <!-- ================= RESULTS CARD ================= -->
+            <div id="analysis-result-card" class="hidden glass-panel p-6 space-y-6 border border-slate-700/80">
+                
+                <!-- Header: Verdict & Score -->
+                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div>
+                        <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Diagnosis Result:</span>
+                        <div class="flex items-center space-x-3 mt-1">
+                            <span id="res-verdict-badge" class="px-4 py-1.5 rounded-full text-sm font-bold bg-red-600/30 text-red-400 border border-red-500/50">HIGH RISK SCAM</span>
+                            <span id="res-category" class="text-base font-semibold text-slate-200">Fake Electricity Bill Disconnection</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400">Confidence Risk Score</span>
+                            <div id="res-score-text" class="text-lg font-bold font-mono text-red-400">96% Risk</div>
+                        </div>
+                        <div class="w-24 h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                            <div id="res-score-bar" class="h-full bg-red-500 rounded-full" style="width: 96%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simple Explanation ("Why this is a scam") -->
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                        <svg class="w-4 h-4 text-blue-400 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Why is this dangerous? (In Simple Words)
+                    </h4>
+                    <p id="res-explanation" class="text-sm text-slate-200 leading-relaxed bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                        Threatening electricity disconnection tonight is a notorious nationwide scam. Electricity boards never use private 10-digit mobile numbers or WhatsApp to demand immediate payment.
+                    </p>
+                </div>
+
+                <!-- Red Flags & Actionable Advice Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- Detected Red Flags -->
+                    <div class="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                        <h5 class="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center">
+                            <svg class="w-4 h-4 mr-1 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            Key Red Flags Detected
+                        </h5>
+                        <ul id="res-red-flags" class="space-y-1.5">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+
+                    <!-- Do's and Don'ts -->
+                    <div class="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+                        <h5 class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center">
+                            <svg class="w-4 h-4 mr-1 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Immediate Safety Action
+                        </h5>
+                        <div class="space-y-2">
+                            <div>
+                                <span class="text-[10px] text-emerald-400 font-bold uppercase">What You Should Do:</span>
+                                <ul id="res-action-do" class="space-y-1 mt-0.5"></ul>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-rose-400 font-bold uppercase">What You Should NEVER Do:</span>
+                                <ul id="res-action-dont" class="space-y-1 mt-0.5"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🚨 WARN A FAMILY MEMBER SECTION -->
+                <div class="bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-slate-900 p-5 rounded-xl border border-blue-800/40 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h4 class="text-sm font-bold text-blue-300 flex items-center">
+                                <svg class="w-5 h-5 text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                <span>Warn a Family Member / Elder</span>
+                            </h4>
+                            <p class="text-xs text-slate-400">Send an instant, easy-to-understand alert on WhatsApp so your parents or relatives don't get tricked.</p>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            <button id="btn-copy-warning" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-semibold border border-slate-700 transition-all flex items-center">
+                                <svg class="w-4 h-4 mr-1 text-slate-300 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                Copy Alert
+                            </button>
+                            <button id="btn-whatsapp-warning" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-semibold shadow-lg shadow-emerald-600/30 transition-all flex items-center space-x-1.5">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+                                <span>Send via WhatsApp</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Warning Message Preview -->
+                    <pre id="res-family-preview" class="text-xs text-slate-300 bg-slate-950/80 p-3 rounded-lg border border-slate-800 whitespace-pre-wrap font-sans"></pre>
+                </div>
+
+                <!-- Footer Action: Log to Live Radar -->
+                <div class="flex items-center justify-between pt-2">
+                    <span class="text-xs text-slate-400">Did you receive this message? Help your neighbors by reporting it anonymously.</span>
+                    <button id="btn-report-from-analysis" class="text-xs text-blue-400 hover:text-blue-300 font-semibold underline">
+                        Pin this scam on Live Community Radar &rarr;
+                    </button>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- ================= TAB 2: LIVE SCAM RADAR & HEATMAP ================= -->
+        <section id="tab-radar" class="tab-panel hidden space-y-6">
+            
+            <!-- Filters & Map Header -->
+            <div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500 animate-ping"></div>
+                    <span class="text-sm font-bold text-slate-200">Live City Scam Radar</span>
+                    <span class="text-xs text-slate-400">(Real-time incident reports & heat intensity)</span>
+                </div>
+
+                <!-- Filters -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <select id="filter-city" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="">All Cities (Nationwide)</option>
+                        <option value="New Delhi">New Delhi / NCR</option>
+                        <option value="Mumbai">Mumbai</option>
+                        <option value="Bengaluru">Bengaluru</option>
+                        <option value="Hyderabad">Hyderabad</option>
+                        <option value="Pune">Pune</option>
+                        <option value="Kolkata">Kolkata</option>
+                        <option value="Chennai">Chennai</option>
+                        <option value="Ahmedabad">Ahmedabad</option>
+                        <option value="Jaipur">Jaipur</option>
+                    </select>
+
+                    <select id="filter-category" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="">All Scam Categories</option>
+                        <option value="Electricity">Fake Electricity Bill</option>
+                        <option value="UPI">UPI 'Receive Money' PIN Fraud</option>
+                        <option value="Digital Arrest">Digital Arrest & Customs</option>
+                        <option value="Telegram">Part-Time Job / Telegram</option>
+                        <option value="KYC">Bank KYC / PAN Phishing</option>
+                        <option value="APK">Malicious APK Screen Share</option>
+                    </select>
+
+                    <button id="btn-reset-filters" class="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded bg-slate-800 border border-slate-700">
+                        Reset View
+                    </button>
+                </div>
+            </div>
+
+            <!-- Map & Live Incident Ticker Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Left 2 Cols: Interactive Leaflet Map -->
+                <div class="lg:col-span-2 glass-panel p-2 overflow-hidden relative">
+                    <div id="map"></div>
+                    
+                    <!-- Map Overlay Legend -->
+                    <div class="absolute bottom-5 left-5 z-[500] bg-slate-900/90 backdrop-blur-md p-3 rounded-lg border border-slate-800 text-[11px] space-y-1">
+                        <span class="font-bold text-slate-300 block mb-1">Radar Heat Intensity:</span>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                            <span class="text-slate-400">Low (1-2 reports)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                            <span class="text-slate-400">Moderate (3-8 reports)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                            <span class="text-slate-400">High / Viral Trend (9+ reports)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right 1 Col: Live Reports Ticker Feed -->
+                <div class="glass-panel p-4 flex flex-col h-[536px]">
+                    <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                            Recent Community Reports
+                        </h4>
+                        <span class="text-[10px] text-slate-500">Click to focus on map</span>
+                    </div>
+
+                    <div id="recent-reports-feed" class="space-y-2 overflow-y-auto pr-1 flex-grow">
+                        <!-- Populated dynamically via loadLiveFeed() -->
+                        <div class="p-4 text-center text-xs text-slate-500">Loading live reports...</div>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- ================= TAB 3: ANONYMOUS REPORT FORM ================= -->
+        <section id="tab-report" class="tab-panel hidden max-w-2xl mx-auto space-y-6">
+            
+            <div class="glass-panel p-6 space-y-6">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-100 flex items-center">
+                        <svg class="w-5 h-5 text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Report a Scam Anonymously
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Help shield your city! Your report instantly appears on the community radar and warms other users in your area.</p>
+                </div>
+
+                <form id="anonymous-report-form" class="space-y-4">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1" for="report-city">Your City *</label>
+                            <input type="text" id="report-city" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. New Delhi, Mumbai, Bengaluru">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1" for="report-pincode">Pincode (Optional)</label>
+                            <input type="text" id="report-pincode" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. 110001">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1" for="report-scam-type">Scam Category *</label>
+                        <select id="report-scam-type" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="Fake Electricity Bill Disconnection">Fake Electricity Bill Disconnection</option>
+                            <option value="UPI 'Receive Money' PIN Fraud">UPI 'Receive Money' PIN Fraud</option>
+                            <option value="Digital Arrest / Fake Police & Customs">Digital Arrest / Fake Police & Customs</option>
+                            <option value="Part-Time Job / Telegram Scam">Part-Time Job / Telegram Scam</option>
+                            <option value="Bank KYC / PAN Phishing">Bank KYC / PAN Phishing</option>
+                            <option value="Malicious APK Screen Share">Malicious APK Screen Share (AnyDesk/QuickSupport)</option>
+                            <option value="Lottery / KBC Advance Fee">Lottery / KBC Advance Fee</option>
+                            <option value="Other Suspicious Scam">Other Suspicious Scam</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1" for="report-snippet">Scam Message Snippet / Call Summary *</label>
+                        <textarea id="report-snippet" required rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Paste the message text or describe what the caller requested..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1" for="report-suspect">Scammer's Phone Number, UPI ID, or Link (Optional)</label>
+                        <input type="text" id="report-suspect" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" placeholder="e.g. 9811223344 or fraud@okaxis or http://bit.ly/fake-link">
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" id="btn-submit-report" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 transition-all">
+                            Submit Anonymous Report
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+
+        </section>
+
+        <!-- ================= TAB 4: SCAM PLAYBOOKS & HELPLINES ================= -->
+        <section id="tab-guide" class="tab-panel hidden space-y-6">
+            
+            <div class="glass-panel p-6 space-y-4">
+                <h3 class="text-lg font-bold text-slate-100 flex items-center">
+                    <svg class="w-5 h-5 text-amber-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    Top Scam Playbooks & How They Work
+                </h3>
+                <p class="text-xs text-slate-400">Educate yourself and your family on the exact psychology and mechanisms behind modern digital scams.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    
+                    <!-- Playbook 1 -->
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-amber-400 font-bold text-sm">1. The Fake Electricity Board Disconnection</span>
+                        </div>
+                        <p class="text-xs text-slate-300">
+                            <strong>Tactic:</strong> Scammers send SMS claiming power will be cut tonight at 9:30 PM. They provide a fake "Electricity Officer" number.
+                        </p>
+                        <p class="text-xs text-slate-400">
+                            <strong>The Trap:</strong> When panicked victims call, the scammer asks them to download AnyDesk or pay a nominal ₹10 fee via an unverified link, draining their account.
+                        </p>
+                    </div>
+
+                    <!-- Playbook 2 -->
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-amber-400 font-bold text-sm">2. The UPI "Receive Money" PIN Trick</span>
+                        </div>
+                        <p class="text-xs text-slate-300">
+                            <strong>Tactic:</strong> Posing as buyers on OLX or army officers, fraudsters offer to send an advance payment via UPI QR code or collect request.
+                        </p>
+                        <p class="text-xs text-slate-400">
+                            <strong>The Trap:</strong> They instruct: "Scan this and enter your UPI PIN to claim money". Remember: <em>You NEVER need a PIN to receive funds.</em>
+                        </p>
+                    </div>
+
+                    <!-- Playbook 3 -->
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-amber-400 font-bold text-sm">3. Digital Arrest & Fake Police Video Calls</span>
+                        </div>
+                        <p class="text-xs text-slate-300">
+                            <strong>Tactic:</strong> Imposters pretend to be FedEx, Customs, or Mumbai Police, claiming a parcel with narcotics was found in your name.
+                        </p>
+                        <p class="text-xs text-slate-400">
+                            <strong>The Trap:</strong> They place you on Skype video wearing fake uniforms and demand "security verification deposits". There is no such thing as Digital Arrest.
+                        </p>
+                    </div>
+
+                    <!-- Playbook 4 -->
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-amber-400 font-bold text-sm">4. Work-From-Home Telegram Task Scam</span>
+                        </div>
+                        <p class="text-xs text-slate-300">
+                            <strong>Tactic:</strong> Offers ₹3,000–₹8,000 daily for liking YouTube videos or giving hotel reviews.
+                        </p>
+                        <p class="text-xs text-slate-400">
+                            <strong>The Trap:</strong> After paying a small initial bonus, victims are added to a Telegram group and coerced into "VIP prepaid investments" that cannot be withdrawn.
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Emergency Helplines Card -->
+            <div class="glass-panel p-6 space-y-3 bg-red-950/20 border-red-900/30">
+                <h4 class="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                    National Emergency Cyber Helplines
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Toll-Free Helpline</span>
+                        <div class="text-lg font-bold font-mono text-red-400">1930</div>
+                        <p class="text-[11px] text-slate-400 mt-0.5">National Cyber Crime Reporting Helpline</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Official Portal</span>
+                        <div class="text-xs font-bold text-blue-400 mt-1">cybercrime.gov.in</div>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Report financial fraud within the golden hour</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Suspect Call/SMS Portal</span>
+                        <div class="text-xs font-bold text-blue-400 mt-1">sancharsaathi.gov.in</div>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Chakshu facility for reporting fraud numbers</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-950/60 py-4 text-center text-xs text-slate-500">
+        <p>Scam Shield &bull; Empowering citizens and families against digital cyber threats &bull; Open Source Initiative</p>
+    </footer>
+
+    <!-- App JavaScript Modules -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/heatmap.js') }}"></script>
+
+</body>
+</html>
