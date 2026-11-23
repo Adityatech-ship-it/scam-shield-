@@ -1,5 +1,5 @@
 """
-Scam Shield - Database & Geolocation Layer
+Trust Who - Database & Geolocation Layer
 Manages anonymous community scam reports and coordinates for live heatmap visualization.
 """
 
