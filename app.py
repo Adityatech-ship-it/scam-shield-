@@ -1,5 +1,5 @@
 """
-Scam Shield - Main Web Application
+Trust Who - Main Web Application
 Flask backend providing REST APIs for scam analysis, community reporting, and live heatmap feed.
 """
 
@@ -124,7 +124,7 @@ def health():
 if __name__ == "__main__":
     # Run development server on port 5000
     print("=" * 60)
-    print("🛡️  SCAM SHIELD WEB APPLICATION STARTING")
+    print("🛡️  TRUST WHO WEB APPLICATION STARTING")
     print("📍 Local URL: http://127.0.0.1:5000")
     print("=" * 60)
     app.run(host="127.0.0.1", port=5000, debug=True)
