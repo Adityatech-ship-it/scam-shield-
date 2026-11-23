@@ -1,5 +1,5 @@
 /**
- * trust who - Live Scam Radar & Heatmap
+ * Trust Who - Live Scam Radar & Heatmap
  * Visualizes anonymous community scam reports on an interactive map
  * with heat clusters, city markers, filters, and live incident feed.
  */
