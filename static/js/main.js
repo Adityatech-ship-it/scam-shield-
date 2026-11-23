@@ -1,5 +1,5 @@
 /**
- * Scam Shield - Core Frontend Logic
+ * Trust  who - Core Frontend Logic
  * Manages Tab Navigation, Text & Screenshot OCR Detection,
  * Family Alerts, Preset Demonstrations, and Anonymous Reporting.
  */
