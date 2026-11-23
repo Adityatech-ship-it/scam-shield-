@@ -119,7 +119,7 @@ def get_stats():
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({"status": "healthy", "service": "Scam Shield"})
+    return jsonify({"status": "healthy", "service": "Trust Who"})
 
 if __name__ == "__main__":
     # Run development server on port 5000
