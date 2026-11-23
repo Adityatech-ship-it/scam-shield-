@@ -1,5 +1,5 @@
 /**
- * Trust  who - Core Frontend Logic
+ * Trust  Who - Core Frontend Logic
  * Manages Tab Navigation, Text & Screenshot OCR Detection,
  * Family Alerts, Preset Demonstrations, and Anonymous Reporting.
  */
