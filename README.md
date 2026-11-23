@@ -1,4 +1,4 @@
-# 🛡️ scam ke pese  (Cybersecurity)
+# 🛡️ Trust Who  (Cybersecurity)
 
 > **Paste or screenshot a suspicious SMS, WhatsApp message, or UPI request.**  
 > Scam Shield diagnoses whether it's a fraud, explains *why* in simple jargon-free language, provides actionable advice, and lets you warn family members on WhatsApp with 1 click. Features an anonymous community reporting system and a **live interactive city scam heatmap & radar**.
