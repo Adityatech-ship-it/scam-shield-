@@ -1,5 +1,5 @@
 """
-Scam Shield - Intelligent Scam Detection & Explanation Engine
+Trust Who - Intelligent Scam Detection & Explanation Engine
 Analyzes suspicious messages (SMS, WhatsApp, UPI, Email, Telegram)
 and produces simple, jargon-free explanations and family warnings.
 """
@@ -354,7 +354,7 @@ class ScamDetector:
             f"⚠️ *Scam Type:* {category}\n"
             f"❌ *Why it's fake:* {explanation}\n\n"
             f"🛑 *Golden Rule:* {dont_advice}\n\n"
-            f"Verified via *Scam Shield* (Cybersecurity). Stay safe and never share OTP or UPI PIN!"
+            f"Verified via *Trust Who* (Cybersecurity). Stay safe and never share OTP or UPI PIN!"
         )
         return msg
 
